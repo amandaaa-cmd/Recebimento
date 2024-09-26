@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Recebimento</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f0f4f8;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            overflow-y: auto;
+        }
+        .container {
+            max-width: 800px;
+            background: #ffffff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            text-align: center;
+        }
+        h1 { color: #007BFF; margin-bottom: 20px; }
+        h2 { color: #333; margin-top: 20px; margin-bottom: 10px; }
+        .status {
+            margin: 15px 0;
+            padding: 15px;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            background-color: #f8f9fa;
+            transition: background-color 0.3s;
+            text-align: left;
+        }
+        .status:hover { background-color: #e2e6ea; }
+        .fornecedor { font-weight: bold; color: #007BFF; }
+        .mercadoria { font-weight: bold; font-size: 1.1em; color: #333; }
+        input[type="text"], input[type="number"], select {
+            width: calc(100% - 22px);
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+            font-size: 1em;
+        }
+        button {
+            padding: 10px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            width: 100%;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #ccc; }
+        .form-container { display: none; margin-top: 20px; }
+        .data-hora { font-size: 1.5em; color: #333; margin: 20px 0; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Painel de Recebimento</h1>
+    <div class="data-hora" id="data-hora"></div>
+
+    <h2>Mercadorias Recebidas</h2>
+    <input type="text" id="search" onkeyup="filtrarMercadorias()" placeholder="Buscar por mercadorias..." />
+    <div id="mercadorias-recebidas"></div>
+
+    <button onclick="solicitarSenha()">Adicionar/Alterar Status de Mercadoria</button>
+    <div class="form-container" id="form-container">
+        <h2>Adicionar ou Alterar Status</h2>
+        <select id="mercadoria-select" onchange="atualizarCampos()">
+            <option value="">Selecionar Mercadoria</option>
+        </select>
+        <input type="text" id="fornecedor" placeholder="Nome do Fornecedor" />
+        <input type="text" id="codigo-produto" placeholder="Código do Produto" />
+        <input type="text" id="descricao" placeholder="Descrição" />
+        <input type="number" id="quantidade" placeholder="Quantidade" />
+        <select id="status">
+            <option value="pendente">Pendente</option>
+            <option value="em andamento">Em Andamento</option>
+            <option value="concluido">Concluído</option>
+        </select>
+        <button onclick="adicionarOuAlterarMercadoria()">Adicionar/Alterar</button>
+        <button id="excluir-button" style="display: none; margin-top: 10px;" onclick="prepararExclusao()">Excluir Mercadoria</button>
+    </div>
+</div>
+
+<script>
+    const mercadorias = [];
+    const senhaCorreta = 'senha123';
+
+    function atualizarDataHora() {
+        const now = new Date();
+        const options = { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
+        document.getElementById('data-hora').innerText = now.toLocaleString('pt-BR', options);
+    }
+
+    function solicitarSenha() {
+        const senha = prompt("Insira a senha de acesso:");
+        if (senha === senhaCorreta) {
+            resetForm();
+            atualizarSelect();
+            document.getElementById('form-container').style.display = 'block';
+        } else {
+            alert('Senha incorreta!');
+        }
+    }
+
+    function resetForm() {
+        document.getElementById('fornecedor').value = '';
+        document.getElementById('codigo-produto').value = '';
+        document.getElementById('descricao').value = '';
+        document.getElementById('quantidade').value = '';
+        document.getElementById('status').value = 'pendente';
+        document.getElementById('mercadoria-select').value = '';
+        document.getElementById('excluir-button').style.display = 'none';
+    }
+
+    function adicionarOuAlterarMercadoria() {
+        const fornecedor = document.getElementById('fornecedor').value;
+        const codigoProduto = document.getElementById('codigo-produto').value;
+        const descricao = document.getElementById('descricao').value;
+        const quantidade = document.getElementById('quantidade').value;
+        const status = document.getElementById('status').value;
+        const mercadoriaSelecionada = document.getElementById('mercadoria-select').value;
+
+        if (fornecedor && codigoProduto && descricao && quantidade) {
+            if (mercadoriaSelecionada) {
+                const index = mercadorias.findIndex(m => m.descricao === mercadoriaSelecionada);
+                mercadorias[index] = { fornecedor, codigoProduto, descricao, quantidade, status };
+            } else {
+                const newMercadoria = { fornecedor, codigoProduto, descricao, quantidade, status };
+                mercadorias.push(newMercadoria);
+            }
+            atualizarListas();
+            resetForm();
+        } else {
+            alert('Campos vazios!');
+        }
+    }
+
+    function atualizarListas() {
+        const listaRecebidas = document.getElementById('mercadorias-recebidas');
+        listaRecebidas.innerHTML = '';
+
+        const agrupadasPorFornecedor = mercadorias.reduce((acc, m) => {
+            acc[m.fornecedor] = acc[m.fornecedor] || [];
+            acc[m.fornecedor].push(m);
+            return acc;
+        }, {});
+
+        for (const fornecedor in agrupadasPorFornecedor) {
+            const divFornecedor = document.createElement('div');
+            divFornecedor.classList.add('status');
+            divFornecedor.innerHTML = `<h3>${fornecedor}</h3>`;
+            agrupadasPorFornecedor[fornecedor].forEach(m => {
+                divFornecedor.innerHTML += `
+                    <div style="margin-bottom: 10px;">
+                        <span class="mercadoria">${m.descricao}</span><br>
+                        Código: ${m.codigoProduto}<br>
+                        Quantidade: ${m.quantidade}<br>
+                        Status: <span style="font-weight: bold; color: ${m.status === 'concluido' ? 'green' : m.status === 'em andamento' ? 'orange' : 'red'};">${m.status}</span>
+                    </div>`;
+            });
+            listaRecebidas.appendChild(divFornecedor);
+        }
+        atualizarSelect();
+    }
+
+    function prepararExclusao() {
+        const descricao = document.getElementById('mercadoria-select').value;
+        const confirmar = confirm(`Tem certeza que deseja excluir "${descricao}"?`);
+        if (confirmar) {
+            excluirMercadoria(descricao);
+        }
+    }
+
+    function excluirMercadoria(descricao) {
+        const index = mercadorias.findIndex(m => m.descricao === descricao);
+        if (index !== -1) {
+            mercadorias.splice(index, 1);
+            atualizarListas();
+            resetForm();
+        }
+    }
+
+    function atualizarSelect() {
+        const select = document.getElementById('mercadoria-select');
+        select.innerHTML = '<option value="">Selecionar Mercadoria</option>';
+        mercadorias.forEach(m => {
+            const option = document.createElement('option');
+            option.value = m.descricao;
+            option.textContent = m.descricao;
+            select.appendChild(option);
+        });
+    }
+
+    function atualizarCampos() {
+        const select = document.getElementById('mercadoria-select');
+        const selectedMercadoria = mercadorias.find(m => m.descricao === select.value);
+        if (selectedMercadoria) {
+            document.getElementById('fornecedor').value = selectedMercadoria.fornecedor;
+            document.getElementById('codigo-produto').value = selectedMercadoria.codigoProduto;
+            document.getElementById('descricao').value = selectedMercadoria.descricao;
+            document.getElementById('quantidade').value = selectedMercadoria.quantidade;
+            document.getElementById('status').value = selectedMercadoria.status;
+
+            document.getElementById('excluir-button').style.display = 'inline';
+        } else {
+            resetForm();
+            document.getElementById('excluir-button').style.display = 'none';
+        }
+    }
+
+    function filtrarMercadorias() {
+        const searchTerm = document.getElementById('search').value.toLowerCase();
+        const listaRecebidas = document.getElementById('mercadorias-recebidas');
+        listaRecebidas.innerHTML = '';
+
+        const filtered = mercadorias.filter(m => 
+            m.descricao.toLowerCase().includes(searchTerm) || 
+            m.fornecedor.toLowerCase().includes(searchTerm)
+        );
+
+        const agrupadasPorFornecedor = filtered.reduce((acc, m) => {
+            acc[m.fornecedor] = acc[m.fornecedor] || [];
+            acc[m.fornecedor].push(m);
+            return acc;
+        }, {});
+
+        for (const fornecedor in agrupadasPorFornecedor) {
+            const divFornecedor = document.createElement('div');
+            divFornecedor.classList.add('status');
+            divFornecedor.innerHTML = `<h3>${fornecedor}</h3>`;
+            agrupadasPorFornecedor[fornecedor].forEach(m => {
+                divFornecedor.innerHTML += `
+                    <div style="margin-bottom: 10px;">
+                        <span class="mercadoria">${m.descricao}</span><br>
+                        Código: ${m.codigoProduto}<br>
+                        Quantidade: ${m.quantidade}<br>
+                        Status: <span style="font-weight: bold; color: ${m.status === 'concluido' ? 'green' : m.status === 'em andamento' ? 'orange' : 'red'};">${m.status}</span>
+                    </div>`;
+            });
+            listaRecebidas.appendChild(divFornecedor);
+        }
+    }
+
+    atualizarDataHora();
+    setInterval(atualizarDataHora, 1000);
+</script>
+
+</body>
+</html>
+
